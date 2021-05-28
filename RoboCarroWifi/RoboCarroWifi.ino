@@ -1,17 +1,24 @@
+//client.publish(topic_public,msg);
 
-/* include library */
+#include <PubSubClient.h>
+#include <Arduino.h>
+
 #include <ESP8266WiFi.h>
 
-/* define port */
-WiFiClient client;
-WiFiServer server(80);
+const char *mqtt_server = "ioticos.org";
+const int   mqtt_port = 1883;
 
-/* WIFI settings */
-const char* ssid = "**** ";
-const char* password = "****";
+const char* mqtt_user = "MbO831pJCLM9Gww";
+const char* mqtt_pass = "AfnOsHhsKo9Tt9s"; 
 
-/* data received from application */
-String  data =""; 
+const char* root_topic_subscribe = "KWEy5HAvrcgemWK";
+//const char* root_topic_publish = "";
+
+const char* ssid = "******";
+const char* password =  "****";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
 
 /* define L298N or L293D motor control pins */
 int leftMotorForward = 2;     /* GPIO2(D4) -> IN3   */
@@ -24,8 +31,13 @@ int rightMotorBackward = 13;  /* GPIO13(D7) -> IN2  */
 int rightMotorENB = 14; /* GPIO14(D5) -> Motor-A Enable */
 int leftMotorENB = 12;  /* GPIO12(D6) -> Motor-B Enable */
 
-void setup()
-{
+void callback(char* topic, byte* payload, unsigned int length);
+void reconnect();
+void setup_wifi();
+
+void setup() {
+  Serial.begin(115200);
+//  pinMode(2,OUTPUT);
   /* initialize motor control pins as output */
   pinMode(leftMotorForward, OUTPUT);
   pinMode(rightMotorForward, OUTPUT); 
@@ -35,33 +47,101 @@ void setup()
   /* initialize motor enable pins as output */
   pinMode(leftMotorENB, OUTPUT); 
   pinMode(rightMotorENB, OUTPUT);
+  
+  setup_wifi();
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
 
-  /* start server communication */
-  server.begin();
 }
 
-void loop()
-{
-    /* If the server available, run the "checkClient" function */  
-    client = server.available();
-    if (!client) return; 
-    data = checkClient ();
+void loop() {
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+}
 
-/************************ Run function according to incoming data from application *************************/
+void setup_wifi(){
+  delay(10);
+  // Nos conectamos a nuestra red Wifi
+  Serial.println();
+  Serial.print("Conectando a ssid: ");
+  Serial.println(ssid);
 
-    /* If the incoming data is "forward", run the "MotorForward" function */
-    if (data == "forward") MotorForward();
-    /* If the incoming data is "backward", run the "MotorBackward" function */
-    else if (data == "backward") MotorBackward();
-    /* If the incoming data is "left", run the "TurnLeft" function */
-    else if (data == "left") TurnLeft();
-    /* If the incoming data is "right", run the "TurnRight" function */
-    else if (data == "right") TurnRight();
-    /* If the incoming data is "stop", run the "MotorStop" function */
-    else if (data == "stop") MotorStop();
-} 
+  WiFi.begin(ssid, password);
 
-/********************************************* FORWARD *****************************************************/
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.println("Conectado a red WiFi!");
+  Serial.println("IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+void reconnect() {
+
+  while (!client.connected()) {
+    Serial.print("Tentando conexão ao Mqtt...");
+    // Creamos un cliente ID
+    String clientId = "IOTICOS_H_W_";
+    clientId += String(random(0xffff), HEX);
+    // Intentamos conectar
+    if (client.connect(clientId.c_str(),mqtt_user,mqtt_pass)) {
+      Serial.println("Conectado!");
+      // Nos suscribimos
+      if(client.subscribe(root_topic_subscribe)){
+        Serial.println("Suscripcion ok");
+      }else{
+        Serial.println("falha Suscripcion");
+      }
+    } else {
+      Serial.print("falha :( com error -> ");
+      Serial.print(client.state());
+      Serial.println(" Intentamos de nuevo en 5 segundos");
+      delay(5000);
+    }
+  }
+}
+
+void callback(char* topic, byte* payload, unsigned int length){
+  String incoming = "";
+  Serial.print("Mensagem recebida de -> ");
+  Serial.print(topic);
+  Serial.println("");
+  for (int i = 0; i < length; i++) {
+    incoming += ((char)payload[i]);
+  }
+  incoming.trim();
+  Serial.println("Mensagem -> " + incoming);
+
+   if(String(topic) == root_topic_subscribe && incoming == "w") {
+//    digitalWrite(LED1,HIGH);
+    MotorForward();
+   }
+   else if(String(topic) == root_topic_subscribe && incoming == "s") {            //desligado
+//    digitalWrite(LED1,LOW);
+    MotorBackward();
+   }
+   else if(String(topic) == root_topic_subscribe && incoming == "a") {
+//    digitalWrite(LED1,HIGH);
+    TurnLeft();
+   }
+   else if(String(topic) == root_topic_subscribe && incoming == "d") {            //desligado
+//    digitalWrite(LED1,LOW);
+    TurnRight();
+   }
+   else if(String(topic) == root_topic_subscribe && incoming == "q") {
+//    digitalWrite(LED1,HIGH);
+    MotorStop();
+   }
+}
+
+
+
+
 void MotorForward(void)   
 {
   digitalWrite(leftMotorENB,HIGH);
@@ -114,14 +194,4 @@ void MotorStop(void)
   digitalWrite(leftMotorBackward,LOW);
   digitalWrite(rightMotorForward,LOW);
   digitalWrite(rightMotorBackward,LOW);
-}
-
-/********************************** RECEIVE DATA FROM the APP ******************************************/
-String checkClient (void)
-{
-  while(!client.available()) delay(1); 
-  String request = client.readStringUntil('\r');
-  request.remove(0, 5);
-  request.remove(request.length()-9,9);
-  return request;
 }
