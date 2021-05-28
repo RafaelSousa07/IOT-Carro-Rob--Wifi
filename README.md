@@ -13,3 +13,6 @@ TIA: 31650163
 
 Descrição resumida do projeto
 0 projeto em questão é sobre um Carro Robô controlado via Wi-fi,  nesse artigo consta o que foi realizado para a montagem e criação do protótipo.  As placas de Arduino são utilizadas tanto em projetos pequenos como  em projeto grandes , o objetivo desse artigo é mostrar como é realizado esse  processo de criação. No fim será mostrado um protótipo da ideia  sugerida, a fim de testar e executar em um ambiente real.
+
+Video de demostração:
+https://youtu.be/W2EKOjNpS5k
